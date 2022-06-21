@@ -4,8 +4,9 @@ import Asarmor from './asarmor';
 test('can patch archive', () => {
   const asarmor = new Asarmor('', {
     header: {
+      kind: 'header',
       files: {
-        'foo.txt': { offset: '0', size: 0 },
+        'foo.txt': { kind: 'files', offset: '0', size: 0 },
       },
     },
     headerSize: 0,
@@ -13,8 +14,9 @@ test('can patch archive', () => {
 
   const archive = asarmor.patch({
     header: {
+      kind: 'header',
       files: {
-        'bar.txt': { offset: '0', size: 0 },
+        'bar.txt': { kind: 'files', offset: '0', size: 0 },
       },
     },
   });
@@ -27,6 +29,7 @@ test('can patch archive', () => {
 test('can apply bloat patch', () => {
   const asarmor = new Asarmor('', {
     header: {
+      kind: 'header',
       files: {},
     },
     headerSize: 0,
@@ -45,6 +48,7 @@ test('can apply bloat patch', () => {
 test('can apply trash patch', () => {
   const asarmor = new Asarmor('', {
     header: {
+      kind: 'header',
       files: {},
     },
     headerSize: 0,
@@ -74,6 +78,7 @@ test('can apply trash patch', () => {
 test('can patch filenames in directories', () => {
   const asarmor = new Asarmor('', {
     header: {
+      kind: 'header',
       files: {},
     },
     headerSize: 0,
@@ -81,10 +86,13 @@ test('can patch filenames in directories', () => {
 
   const archive = asarmor.patch({
     header: {
+      kind: 'header',
       files: {
         bar: {
+          kind: 'header',
           files: {
             baz: {
+              kind: 'file',
               offset: '0',
               size: 0,
             },

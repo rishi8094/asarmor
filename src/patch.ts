@@ -20,11 +20,16 @@ export function createBloatPatch(gigabytes = 10): Patch {
     while (Object.keys(files).indexOf(filename) > -1)
       filename = randomBytes(30).toString('hex');
 
-    files[filename] = { offset: '0', size: 1 * 1024 * 1024 * 1024 };
+    files[filename] = {
+      kind: 'file',
+      offset: '0',
+      size: 1 * 1024 * 1024 * 1024,
+    };
   }
 
   return {
     header: {
+      kind: 'header',
       files,
     },
   };
@@ -47,6 +52,18 @@ export function createTrashPatch(options?: {
    * Example: (filename: string) => filename + ".txt"
    */
   beforeWrite?: (fileName: string) => string;
+
+  /**
+   * Optional configuration for the fake file contents.
+   */
+  includeData?: {
+    // Whether to use a random string for the file contents.
+    generate?: boolean;
+    /// The min size of the file in bytes.
+    minFileSize?: number;
+    /// The max size of the file in bytes.
+    maxFileSize?: number;
+  };
 }): Patch {
   if (!options) options = {};
   if (!options.filenames || options?.filenames.length == 0)
@@ -59,6 +76,7 @@ export function createTrashPatch(options?: {
       'test/test1.js',
       'test/test2.js',
       'test/test3.js',
+      'package.json',
     ];
   if (!options.beforeWrite) options.beforeWrite = (f) => f;
   const { beforeWrite, filenames } = options;
@@ -69,6 +87,11 @@ export function createTrashPatch(options?: {
     const fileName = beforeWrite(filename);
     const size = Math.floor(random(1, Number.MAX_VALUE / 2));
     const offset = Math.floor(Math.random() * (Math.pow(2, 32) - 1));
+    // Generates a file size between 100KB and 8MB
+    const fileSize = random(
+      options.includeData?.minFileSize || 1e5,
+      options.includeData?.maxFileSize || 1e6
+    );
 
     // files in directpries
     // e.g. a/b/foo.txt, a\\b\\foo.txt
@@ -81,17 +104,33 @@ export function createTrashPatch(options?: {
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const obj: any = files[parent] || {};
-      createNestedObject(obj, subdirs, { size, offset: offset.toString() });
-      files[parent] = obj;
+      createNestedObject(obj, subdirs, {
+        kind: 'file',
+        size,
+        offset: offset.toString(),
+        data: options.includeData?.generate ? randomBytes(fileSize) : undefined,
+      });
+      files[parent] = {
+        kind: 'header',
+        ...obj,
+      };
     }
     // regular file
     // e.g. foo.txt
     else {
-      files[fileName] = { size, offset: offset.toString() };
+      files[fileName] = {
+        kind: 'file',
+        size,
+        offset: offset.toString(),
+        data: options.includeData?.generate ? randomBytes(fileSize) : undefined,
+      };
     }
   }
 
   return {
-    header: { files },
+    header: {
+      kind: 'header',
+      files,
+    },
   };
 }

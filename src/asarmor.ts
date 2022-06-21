@@ -1,6 +1,6 @@
 import fsAsync, { FileHandle } from 'fs/promises';
 import fs from 'fs';
-import { Archive } from './asar';
+import { Archive, File, Header } from './asar';
 import { createBloatPatch, createTrashPatch } from '.';
 import { Patch } from './patch';
 
@@ -128,6 +128,10 @@ export default class Asarmor {
       this.archive.headerSize = patch.headerSize;
     }
 
+    if (patch.header?.kind) {
+      this.archive.header.kind = patch.header.kind;
+    }
+
     return this.archive;
   }
 
@@ -137,6 +141,15 @@ export default class Asarmor {
   async write(outputPath: string): Promise<string> {
     // Convert header back to string
     const headerPickle = pickle.createEmpty();
+
+    // TODO: this is a hacky way to do this.
+    const headerFiles = await enumerateArchiveHeaderFiles(this.archive.header);
+    const headerFilesOffsets = headerFiles.map((file) => [
+      file.filename,
+      file.offset,
+      file.size,
+    ]);
+    console.log(headerFilesOffsets);
     headerPickle.writeString(JSON.stringify(this.archive.header));
 
     // Read new header size
@@ -200,4 +213,36 @@ export async function open(asarFilePath: string) {
  */
 export async function close(asarmor: Asarmor, outputfilePath: string) {
   return asarmor.write(outputfilePath);
+}
+
+async function enumerateArchiveHeaderFiles(header: Header) {
+  const files: {
+    filename: string;
+    size: number;
+    offset: string;
+    data: Buffer;
+  }[] = [];
+  const headerFiles = header.files;
+  for (const fileName in headerFiles) {
+    const fileOrHeader = headerFiles[fileName];
+    if (fileOrHeader.kind === 'file') {
+      const file = fileOrHeader as File;
+      if (!file.data) {
+        continue;
+      }
+      files.push({
+        filename: fileName,
+        size: file.size,
+        offset: file.offset,
+        data: file.data,
+      });
+    } else if (fileOrHeader.kind === 'header') {
+      const header = fileOrHeader as Header;
+      const headerFiles = await enumerateArchiveHeaderFiles(header);
+      for (const headerFileName in headerFiles) {
+        files.push(headerFiles[headerFileName]);
+      }
+    }
+  }
+  return files;
 }
