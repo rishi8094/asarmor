@@ -18,6 +18,12 @@ export interface Header {
   files: FileEntries;
 }
 
+export interface ArchiveFile {
+  name: string;
+  data: Buffer;
+  offset: number;
+}
+
 export interface Archive {
   /**
    * Length of the header.

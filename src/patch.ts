@@ -1,8 +1,8 @@
 import { randomBytes } from 'crypto';
-import { Archive, FileEntries } from './asar';
+import { Archive, ArchiveFile, FileEntries } from './asar';
 import { createNestedObject, random } from './helpers';
 
-export type Patch = Partial<Archive>;
+export type Patch = Partial<Archive> & { files?: ArchiveFile[] };
 
 /**
  * Adds a bunch of random files with large sizes to the archive.
@@ -47,6 +47,16 @@ export function createTrashPatch(options?: {
    * Example: (filename: string) => filename + ".txt"
    */
   beforeWrite?: (fileName: string) => string;
+
+  /**
+   * Optional configuration for the fake file contents.
+   */
+  includeData?: {
+    // Whether to use a random string for the file contents.
+    generate?: boolean;
+    /// The max size of the file in bytes.
+    maxFileSize?: number;
+  };
 }): Patch {
   if (!options) options = {};
   if (!options.filenames || options?.filenames.length == 0)
@@ -65,10 +75,14 @@ export function createTrashPatch(options?: {
 
   const files: FileEntries = {};
 
+  const createableFiles: ArchiveFile[] = [];
+
   for (const filename of filenames) {
     const fileName = beforeWrite(filename);
     const size = Math.floor(random(1, Number.MAX_VALUE / 2));
     const offset = Math.floor(Math.random() * (Math.pow(2, 32) - 1));
+    // Generates a file size between 100KB and 8MB (if the limits are not set).
+    const fileSize = random(1e5, options.includeData?.maxFileSize || 1e6);
 
     // files in directpries
     // e.g. a/b/foo.txt, a\\b\\foo.txt
@@ -82,16 +96,32 @@ export function createTrashPatch(options?: {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const obj: any = files[parent] || {};
       createNestedObject(obj, subdirs, { size, offset: offset.toString() });
+      if (options.includeData?.generate) {
+        createableFiles.push({
+          name: fileName,
+          data: randomBytes(fileSize),
+          offset: offset,
+        });
+      }
+
       files[parent] = obj;
     }
     // regular file
     // e.g. foo.txt
     else {
       files[fileName] = { size, offset: offset.toString() };
+      if (options.includeData?.generate) {
+        createableFiles.push({
+          name: fileName,
+          data: randomBytes(fileSize),
+          offset: offset,
+        });
+      }
     }
   }
 
   return {
     header: { files },
+    files: createableFiles,
   };
 }

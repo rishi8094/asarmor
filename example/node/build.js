@@ -10,7 +10,11 @@ const {original, protected} = require('./constants');
   // apply asarmor patches
   const archive = await asarmor.open(original);
   await archive.createBackup();
-  archive.patch(asarmor.createTrashPatch());
+  archive.patch(asarmor.createTrashPatch({
+    includeData:{
+      generate: true
+    }
+  }));
   const path = await archive.write(protected);
   console.log('protected archive:', path);
 })();

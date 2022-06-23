@@ -1,6 +1,6 @@
 import fsAsync, { FileHandle } from 'fs/promises';
 import fs from 'fs';
-import { Archive } from './asar';
+import { Archive, ArchiveFile } from './asar';
 import { createBloatPatch, createTrashPatch } from '.';
 import { Patch } from './patch';
 
@@ -95,6 +95,7 @@ type RestoreBackupOptions = BackupOptions & {
 export default class Asarmor {
   private readonly filePath: string;
   private archive: Archive;
+  private generatedFiles: ArchiveFile[];
 
   /**
    * @deprecated: use the top-level asarmor.open() function to construct a new instance instead.
@@ -102,6 +103,7 @@ export default class Asarmor {
   constructor(archivePath: string, archive: Archive) {
     this.filePath = archivePath;
     this.archive = archive;
+    this.generatedFiles = [];
   }
 
   /**
@@ -112,6 +114,11 @@ export default class Asarmor {
       this.patch(createTrashPatch());
       this.patch(createBloatPatch());
       return this.archive;
+    }
+
+    if (patch.files) {
+      // Merge files
+      this.generatedFiles = [...this.generatedFiles, ...patch.files];
     }
 
     if (patch.header)
@@ -126,6 +133,10 @@ export default class Asarmor {
       ).length;
     } else if (patch.headerSize) {
       this.archive.headerSize = patch.headerSize;
+    }
+
+    if (patch.files) {
+      this.generatedFiles.concat(patch.files);
     }
 
     return this.archive;
@@ -150,6 +161,18 @@ export default class Asarmor {
     const writeStream = fs.createWriteStream(tmp, { flags: 'w' });
     writeStream.write(sizeBuffer);
     writeStream.write(headerBuffer);
+
+    // Write all generated files
+    const fileWriteStream = fs.createWriteStream(tmp, {
+      flags: 'a',
+      start: sizeBuffer.length + headerBuffer.length,
+    });
+    for (const file of this.generatedFiles) {
+      console.log(`Writing file ${file.name}`);
+      if (file.offset > sizeBuffer.length + headerBuffer.length) {
+        fileWriteStream.write(file.data);
+      }
+    }
 
     // write unmodified contents
     const fd = await fsAsync.open(this.filePath, 'r');
